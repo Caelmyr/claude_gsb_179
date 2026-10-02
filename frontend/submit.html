@@ -48,6 +48,15 @@
             </div>
           </div>
 
+          <label>优先级 Priority（高优先级优先获得资源，资源紧张时可抢占低优先级 Higher priority gets resources first）</label>
+          <select id="priority">
+            <option value="10">P10 紧急 Critical</option>
+            <option value="8">P8 高 High</option>
+            <option value="5" selected>P5 普通 Normal</option>
+            <option value="3">P3 低 Low</option>
+            <option value="1">P1 最低 Minimal</option>
+          </select>
+
           <fieldset>
             <legend>高级 Advanced</legend>
             <label style="display:flex;align-items:center;gap:8px;margin:0">

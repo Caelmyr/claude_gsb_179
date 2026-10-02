@@ -64,6 +64,56 @@ WORKER_ALIVE = "alive"
 WORKER_DEAD = "dead"
 
 # ---------------------------------------------------------------------------
+# Job priority (1..10, higher wins) and scheduling-queue states
+# ---------------------------------------------------------------------------
+PRIORITY_MIN = 1
+PRIORITY_MAX = 10
+PRIORITY_DEFAULT = 5
+
+# Named preset levels offered by the submit page (value -> bilingual label).
+PRIORITY_LEVELS = {
+    1: "最低 Minimal",
+    3: "低 Low",
+    5: "普通 Normal",
+    8: "高 High",
+    10: "紧急 Critical",
+}
+
+# Queue states reported by the scheduler for every active job.
+QUEUE_RUNNING = "running"      # has tasks on workers right now
+QUEUE_QUEUED = "queued"        # runnable work exists but no slot was granted
+QUEUE_STARVED = "starved"      # queued long enough to receive an aging boost
+
+QUEUE_STATE_LABELS = {
+    QUEUE_RUNNING: "运行中 Running",
+    QUEUE_QUEUED: "排队中 Queued",
+    QUEUE_STARVED: "饥饿提升 Starved (boosted)",
+}
+
+
+def clamp_priority(value) -> int:
+    """Coerce an arbitrary input into a valid priority integer."""
+    try:
+        p = int(value)
+    except (TypeError, ValueError):
+        return PRIORITY_DEFAULT
+    return max(PRIORITY_MIN, min(PRIORITY_MAX, p))
+
+
+def priority_label(priority: int) -> str:
+    """Bilingual label for a priority value (nearest named level)."""
+    if priority in PRIORITY_LEVELS:
+        return PRIORITY_LEVELS[priority]
+    for level in sorted(PRIORITY_LEVELS, reverse=True):
+        if priority > level:
+            return PRIORITY_LEVELS[level]
+    return PRIORITY_LEVELS[PRIORITY_MIN]
+
+
+def queue_state_label(state: str) -> str:
+    return QUEUE_STATE_LABELS.get(state, str(state))
+
+# ---------------------------------------------------------------------------
 # Log levels
 # ---------------------------------------------------------------------------
 LOG_DEBUG = "DEBUG"

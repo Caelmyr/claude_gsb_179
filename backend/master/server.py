@@ -80,6 +80,8 @@ class Master:
         app.add_url_rule("/api/jobs", "jobs", self._jobs, methods=["GET", "POST"])
         app.add_url_rule("/api/jobs/<job_id>", "job_detail", self._job_detail, methods=["GET"])
         app.add_url_rule("/api/jobs/<job_id>/cancel", "job_cancel", self._job_cancel, methods=["POST"])
+        app.add_url_rule("/api/jobs/<job_id>/priority", "job_priority", self._job_priority, methods=["POST"])
+        app.add_url_rule("/api/scheduler/queue", "scheduler_queue", self._scheduler_queue, methods=["GET"])
         app.add_url_rule("/api/jobs/<job_id>/tasks", "job_tasks", self._job_tasks, methods=["GET"])
         app.add_url_rule("/api/jobs/<job_id>/shards", "job_shards", self._job_shards, methods=["GET"])
         app.add_url_rule("/api/jobs/<job_id>/shuffle", "job_shuffle", self._job_shuffle, methods=["GET"])
@@ -155,6 +157,14 @@ class Master:
     def _overview(self):
         jobs = self.job_manager.list_jobs()
         active = [j for j in jobs if not j.is_terminal]
+        queue = {e["job_id"]: e for e in self.scheduler.queue_status()["jobs"]}
+        recent = []
+        for j in jobs[:10]:
+            summary = self.job_manager.job_summary(j)
+            entry = queue.get(j.job_id)
+            if entry:
+                summary["queue"] = entry
+            recent.append(summary)
         return jsonify({
             "jobs_total": len(jobs),
             "jobs_active": len(active),
@@ -163,7 +173,7 @@ class Master:
             "jobs_cancelled": sum(1 for j in jobs if j.status == C.JOB_CANCELLED),
             "workers": self.registry.summary(),
             "config": self.config.to_dict(),
-            "recent_jobs": [self.job_manager.job_summary(j) for j in jobs[:10]],
+            "recent_jobs": recent,
         })
 
     def _functions(self):
@@ -190,6 +200,9 @@ class Master:
         summary = self.job_manager.job_summary(job)
         summary["shuffle"] = self.shuffle.progress(job)
         summary["fault_count"] = len(self.fault_tolerance.list_faults(job_id))
+        queue = {e["job_id"]: e for e in self.scheduler.queue_status()["jobs"]}
+        if job_id in queue:
+            summary["queue"] = queue[job_id]
         return jsonify({
             "job": summary,
             "tasks": [self._task_view(t) for t in self.job_manager.tasks_for(job_id)],
@@ -202,6 +215,19 @@ class Master:
         if not job.is_terminal:
             self.job_manager.cancel(job)
         return jsonify(self.job_manager.job_summary(job))
+
+    def _job_priority(self, job_id: str):
+        job, err, code = self._get_job(job_id)
+        if job is None:
+            return err, code
+        body = request.get_json(silent=True) or {}
+        if "priority" not in body:
+            return jsonify({"error": "missing priority"}), 400
+        self.job_manager.set_priority(job, body.get("priority"))
+        return jsonify(self.job_manager.job_summary(job))
+
+    def _scheduler_queue(self):
+        return jsonify(self.scheduler.queue_status())
 
     def _job_tasks(self, job_id: str):
         job, err, code = self._get_job(job_id)

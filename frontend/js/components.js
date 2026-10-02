@@ -19,12 +19,33 @@ const Components = (() => {
     REDUCE: 'Reduce', SUCCEEDED: '成功 Succeeded', FAILED: '失败 Failed', CANCELLED: '已取消 Cancelled',
     ASSIGNED: '已分配 Assigned', RUNNING: '运行中 Running', RETRYING: '重试 Retrying',
     alive: '存活 Alive', dead: '失联 Dead', ready: '就绪 Ready', done: '完成 Done',
+    running: '运行中 Running', queued: '排队中 Queued', starved: '饥饿提升 Boosted',
   };
   const CLASS = {
     SUCCEEDED: 'good', FAILED: 'bad', CANCELLED: 'muted', RUNNING: 'run', MAP: 'run',
     REDUCE: 'aqua', SHUFFLE: 'warn', RETRYING: 'warn', ASSIGNED: 'aqua', PENDING: 'muted',
     SHARDING: 'muted', alive: 'good', dead: 'bad', ready: 'muted', done: 'good',
+    running: 'run', queued: 'warn', starved: 'bad',
   };
+
+  // Named priority levels (value -> bilingual label), mirrored from the backend.
+  const PRIORITY_LEVELS = [
+    [10, '紧急 Critical'], [8, '高 High'], [5, '普通 Normal'], [3, '低 Low'], [1, '最低 Minimal'],
+  ];
+
+  function priorityLabel(p) {
+    const v = Number(p) || 5;
+    for (const [level, label] of PRIORITY_LEVELS) {
+      if (v >= level) return label;
+    }
+    return PRIORITY_LEVELS[PRIORITY_LEVELS.length - 1][1];
+  }
+
+  function priorityBadge(p) {
+    const v = Number(p) || 5;
+    const cls = v >= 10 ? 'bad' : (v >= 8 ? 'warn' : (v >= 5 ? 'aqua' : 'muted'));
+    return `<span class="badge ${cls}">P${v} ${esc(priorityLabel(v))}</span>`;
+  }
 
   // ------------------------------------------------------------------
   function esc(s) {
@@ -195,5 +216,6 @@ const Components = (() => {
   return {
     PAGES, LABELS, CLASS, esc, fmtNum, fmtBytes, fmtTime, fmtDur, fmtPct,
     stateBadge, progress, meter, empty, table, renderNav, init, toast, poll, valueCell, jobPicker,
+    priorityLabel, priorityBadge,
   };
 })();

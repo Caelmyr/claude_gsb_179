@@ -72,9 +72,11 @@ def _wait_for(client: HttpClient, url: str, timeout: float) -> bool:
     return False
 
 
-def _submit_demo_job(client: HttpClient, master_url: str, fault: bool) -> dict:
+def _submit_demo_job(client: HttpClient, master_url: str, fault: bool,
+                     priority: int = 5) -> dict:
     from backend.tasks.samples import SAMPLE_JOBS
     spec = dict(SAMPLE_JOBS[0])
+    spec["priority"] = priority
     if fault:
         spec["params"] = {"simulate_failure": True}
         spec["name"] = spec["name"] + " (fault injection)"
@@ -117,12 +119,15 @@ def cmd_demo(args) -> None:
         time.sleep(2.5)
 
         # 4. Submit a sample job (and optionally a fault-injection job)
-        job = _submit_demo_job(client, master_url, fault=args.fault)
+        job = _submit_demo_job(client, master_url, fault=args.fault, priority=8)
         print(f"[demo] submitted job: {job.get('job_id') if isinstance(job, dict) else job}")
 
         if args.jobs > 1:
-            for _ in range(args.jobs - 1):
-                _submit_demo_job(client, master_url, fault=False)
+            # Mixed priorities so the scheduling queue shows banding, fair
+            # sharing and (under contention) preemption.
+            for i in range(args.jobs - 1):
+                _submit_demo_job(client, master_url, fault=False,
+                                 priority=[5, 3, 10, 1][i % 4])
 
         print(f"[demo] cluster running — open http://127.0.0.1:{master_port}/")
         print("[demo] Ctrl-C to stop")

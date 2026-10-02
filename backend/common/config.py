@@ -56,6 +56,10 @@ class ClusterConfig:
     reduce_parallelism_factor: float = 2.0
     scheduler_tick_sec: float = 5.0              # master scheduling loop cadence
     metric_interval_sec: float = 2.0             # metric sample cadence
+    preemption_enabled: bool = True              # high-priority jobs may evict lower ones
+    preemption_guard_progress: float = 0.8       # never preempt a task at/above this progress
+    preemption_max_per_tick: int = 4             # bound preemption churn per scheduler tick
+    priority_aging_sec: float = 60.0             # queued this long -> +1 effective priority (0 = off)
     demo_mode: bool = False                      # simulate work for fast UI demos
     default_input_rows: int = 12000              # generated input size for sample jobs
     seed: int = 20260930
@@ -84,6 +88,10 @@ class ClusterConfig:
             reduce_parallelism_factor=_num(self.reduce_parallelism_factor, 2.0, 0.5, 50.0),
             scheduler_tick_sec=_num(self.scheduler_tick_sec, 0.5, 0.05, 10.0),
             metric_interval_sec=_num(self.metric_interval_sec, 2.0, 0.5, 60.0),
+            preemption_enabled=_bool(self.preemption_enabled, True),
+            preemption_guard_progress=_num(self.preemption_guard_progress, 0.8, 0.0, 1.0),
+            preemption_max_per_tick=_int(self.preemption_max_per_tick, 4, 1, 100),
+            priority_aging_sec=_num(self.priority_aging_sec, 60.0, 0.0, 3600.0),
             demo_mode=_bool(self.demo_mode, False),
             default_input_rows=_int(self.default_input_rows, 12000, 10, 10_000_000),
             seed=_int(self.seed, 20260930, 0, 2 ** 31 - 1),

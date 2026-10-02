@@ -9,6 +9,7 @@ const KIND_LABEL = {
   worker_dead: 'Worker 失联 Worker dead',
   reassigned: '任务改派 Reassigned',
   speculation: '推测执行 Speculation',
+  preempted: '被抢占 Preempted',
 };
 
 async function render() {

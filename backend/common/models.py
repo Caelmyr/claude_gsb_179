@@ -118,6 +118,7 @@ class Job:
     num_reduce_tasks: int
     input_rows: int = 0
     status: str = C.JOB_PENDING
+    priority: int = C.PRIORITY_DEFAULT
     created_ms: int = 0
     started_ms: int = 0
     finished_ms: int = 0
@@ -223,7 +224,8 @@ class MetricSample:
 # Factories
 # ---------------------------------------------------------------------------
 def new_job(name: str, mapper: str, reducer: str, num_map_tasks: int,
-            num_reduce_tasks: int, input_rows: int, params: Optional[dict] = None) -> Job:
+            num_reduce_tasks: int, input_rows: int, params: Optional[dict] = None,
+            priority: int = C.PRIORITY_DEFAULT) -> Job:
     return Job(
         job_id=new_id("job"),
         name=name,
@@ -232,6 +234,7 @@ def new_job(name: str, mapper: str, reducer: str, num_map_tasks: int,
         num_map_tasks=num_map_tasks,
         num_reduce_tasks=num_reduce_tasks,
         input_rows=input_rows,
+        priority=C.clamp_priority(priority),
         created_ms=now_ms(),
         params=params or {},
         stage_progress={s: {"done": 0, "total": 0, "pct": 0.0} for s in C.STAGES},

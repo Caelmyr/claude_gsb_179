@@ -16,6 +16,10 @@ const CLUSTER_FIELDS = [
   { key: 'reduce_parallelism_factor', label: 'Reduce 并行因子 Reduce parallelism', type: 'number', step: 0.5, min: 0.5 },
   { key: 'scheduler_tick_sec', label: '调度周期 Scheduler tick (s)', type: 'number', step: 0.05, min: 0.05 },
   { key: 'metric_interval_sec', label: '指标采样周期 Metric interval (s)', type: 'number', step: 0.5, min: 0.5 },
+  { key: 'preemption_enabled', label: '优先级抢占 Priority preemption', type: 'checkbox' },
+  { key: 'preemption_guard_progress', label: '抢占保护进度 Preemption guard (progress)', type: 'number', step: 0.05, min: 0 },
+  { key: 'preemption_max_per_tick', label: '单周期抢占上限 Max preemptions / tick', type: 'number', step: 1, min: 1 },
+  { key: 'priority_aging_sec', label: '优先级老化间隔 Aging interval (s, 0=off)', type: 'number', step: 1, min: 0 },
   { key: 'demo_mode', label: '演示模式 Demo mode', type: 'checkbox' },
   { key: 'default_input_rows', label: '默认输入行数 Default input rows', type: 'number', step: 100, min: 10 },
 ];

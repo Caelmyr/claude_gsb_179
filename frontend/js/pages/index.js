@@ -21,12 +21,16 @@ async function load() {
     ? C.table(
         [
           { key: 'name', label: '作业 Job' },
+          { key: 'priority', label: '优先级 Priority', render: r => C.priorityBadge(r.priority) },
           { key: 'status', label: '状态 Status', render: r => C.stateBadge(r.status, true) },
+          { key: 'queue', label: '队列 Queue', render: r => r.queue ? C.stateBadge(r.queue.queue_state, true) : '-' },
           { key: 'stage', label: '阶段进度 Progress', render: r => stageBars(r) },
           { key: 'created_ms', label: '提交时间 Submitted', render: r => C.fmtTime(r.created_ms) },
         ],
         jobs, { onClick: null })
     : C.empty();
+
+  loadQueue();
 
   document.getElementById('worker-summary').innerHTML = (w.workers && w.workers.length)
     ? C.table(
@@ -48,6 +52,30 @@ function stageBars(job) {
     return `<div style="margin-bottom:5px">${C.progress(st.pct || 0, label)}</div>`;
   });
   return `<div style="min-width:180px">${parts.join('')}</div>`;
+}
+
+async function loadQueue() {
+  let q;
+  try { q = await API.get('/api/scheduler/queue'); } catch (e) { return; }
+  const jobs = q.jobs || [];
+  const head = `<div class="flex between small mb">
+    <span class="muted">集群容量 Capacity: <b>${q.capacity}</b> 槽位 slots · 空闲 Free: <b>${q.free_slots}</b></span>
+    <span class="muted">抢占 Preemption: ${q.preemption_enabled ? '开启 on' : '关闭 off'}</span>
+  </div>`;
+  document.getElementById('queue').innerHTML = head + (jobs.length
+    ? C.table([
+        { key: 'queue_position', label: '#', render: r => r.queue_position, num: true },
+        { key: 'name', label: '作业 Job', render: r => C.esc(r.name) },
+        { key: 'priority', label: '优先级 Priority', render: r => C.priorityBadge(r.priority) +
+            (r.effective_priority > r.priority ? ` <span class="badge bad">→P${r.effective_priority}</span>` : '') },
+        { key: 'queue_state', label: '队列状态 Queue', render: r => C.stateBadge(r.queue_state, true) },
+        { key: 'status', label: '阶段 Stage', render: r => C.stateBadge(r.status, true) },
+        { key: 'running_tasks', label: '运行中 Running', render: r => r.running_tasks, num: true },
+        { key: 'pending_tasks', label: '待调度 Pending', render: r => r.pending_tasks, num: true },
+        { key: 'fair_share', label: '公平份额 Fair share', render: r => r.fair_share, num: true },
+        { key: 'waiting_ms', label: '等待 Wait', render: r => r.waiting_ms ? C.fmtDur(r.waiting_ms) : '-', num: true },
+      ], jobs)
+    : C.empty('暂无排队作业 No active jobs'));
 }
 
 C.poll(load, 2500).start();

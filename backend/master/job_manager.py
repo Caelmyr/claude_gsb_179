@@ -82,10 +82,12 @@ class JobManager:
         num_map = int(payload.get("num_map_tasks", defaults.get("num_map_tasks", 8)))
         num_reduce = int(payload.get("num_reduce_tasks", defaults.get("num_reduce_tasks", 4)))
         input_rows = int(payload.get("input_rows", defaults.get("input_rows", 12000)))
+        priority = C.clamp_priority(payload.get("priority", C.PRIORITY_DEFAULT))
         params = dict(payload.get("params") or {})
         params["input_kind"] = input_kind_for(mapper)
 
-        job = new_job(name, mapper, reducer, num_map, num_reduce, input_rows, params)
+        job = new_job(name, mapper, reducer, num_map, num_reduce, input_rows, params,
+                      priority=priority)
 
         with self._lock:
             plan = self.planner.plan(job)
@@ -106,7 +108,7 @@ class JobManager:
 
         self.logbus.info(
             job.job_id, f"job submitted: {job.num_map_tasks} map / {job.num_reduce_tasks} reduce, "
-                        f"{plan['total_records']} records", task_id="submit",
+                        f"{plan['total_records']} records, priority {job.priority}", task_id="submit",
         )
         return job
 
@@ -195,6 +197,21 @@ class JobManager:
         self.logbus.warn(job.job_id, "job cancelled", task_id="job")
         return job
 
+    def set_priority(self, job: Job, priority: int) -> Job:
+        """Change a job's priority; the scheduler picks it up on the next tick."""
+        new_priority = C.clamp_priority(priority)
+        with self._lock:
+            old = job.priority
+            job.priority = new_priority
+            # A priority change re-arms the aging clock so a boosted job does
+            # not keep a stale boost, and a demoted job starts waiting afresh.
+            job.stats.pop("waiting_since_ms", None)
+            self.save_job(job)
+        self.logbus.info(
+            job.job_id, f"priority changed {old} -> {new_priority}", task_id="job",
+        )
+        return job
+
     def fail(self, job: Job, error: str) -> Job:
         job.error = error
         self.set_job_status(job, C.JOB_FAILED)
@@ -234,6 +251,7 @@ class JobManager:
             "mapper": job.mapper,
             "reducer": job.reducer,
             "status": job.status,
+            "priority": job.priority,
             "num_map_tasks": job.num_map_tasks,
             "num_reduce_tasks": job.num_reduce_tasks,
             "input_rows": job.input_rows,

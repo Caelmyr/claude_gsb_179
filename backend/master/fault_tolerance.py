@@ -7,7 +7,9 @@ This module turns failures into *recoverable events*:
 * a worker that stops heartbeating has every in-flight task reassigned to other
   workers (the original is treated as a lost attempt, not a permanent failure);
 * stragglers — tasks running much longer than the median — are detected and a
-  speculative duplicate is launched on another worker, winner takes all.
+  speculative duplicate is launched on another worker, winner takes all;
+* preemption — a task evicted by a higher-priority job is re-queued without
+  consuming its retry budget, and the eviction is recorded here too.
 
 Every decision is recorded both as a structured ``FaultEvent`` document (for the
 fault-recovery page) and as a log line (for the log-search page).
@@ -66,7 +68,7 @@ class FaultTolerance:
         """Return True if the task was queued for retry, False if the job is doomed."""
         max_attempts = int(self.config.max_attempts)
         if task.attempts < max_attempts:
-            backoff_ms = int(self.config.retry_backoff_base_sec * (2 ** task.attempts))
+            backoff_ms = int(self.config.retry_backoff_base_sec * (2 ** task.attempts) * 1000)
             self._record(
                 job, "task_failed", f"task {task.task_id} failed ({error}); retrying",
                 task=task, worker_id=worker_id,
@@ -90,6 +92,15 @@ class FaultTolerance:
                                      error=error, attempts=task.attempts + 1)
         self.job_manager.fail(job, f"task {task.task_id} failed after {max_attempts} attempts: {error}")
         return False
+
+    def record_preemption(self, job: Job, task: Task, worker_id: str = "") -> FaultEvent:
+        """Record that a running task was preempted by a higher-priority job."""
+        return self._record(
+            job, "preempted",
+            f"task {task.task_id} preempted by a higher-priority job; re-queued",
+            task=task, worker_id=worker_id,
+            detail={"preemptions": (task.stats or {}).get("preemptions", 0)},
+        )
 
     def handle_worker_death(self, worker: WorkerRecord) -> int:
         """Reassign every in-flight task on a dead worker. Returns count."""
