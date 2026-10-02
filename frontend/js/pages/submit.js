@@ -7,6 +7,10 @@ let SAMPLES = [];
 async function init() {
   const funcs = await API.get('/api/functions');
   SAMPLES = await API.get('/api/samples');
+  try {
+    const defaults = await API.get('/api/config/defaults');
+    if (defaults.priority) document.getElementById('priority').value = String(defaults.priority);
+  } catch (e) {}
 
   fillSelect('mapper', funcs.mappers);
   fillSelect('reducer', funcs.reducers);
@@ -41,6 +45,7 @@ function fillFromSample(s) {
   document.getElementById('num_map_tasks').value = s.num_map_tasks;
   document.getElementById('num_reduce_tasks').value = s.num_reduce_tasks;
   document.getElementById('input_rows').value = s.input_rows;
+  document.getElementById('priority').value = String(s.priority || 5);
   document.getElementById('simulate_failure').checked = false;
 }
 
@@ -53,6 +58,7 @@ async function onSubmit(ev) {
     num_map_tasks: parseInt(document.getElementById('num_map_tasks').value, 10),
     num_reduce_tasks: parseInt(document.getElementById('num_reduce_tasks').value, 10),
     input_rows: parseInt(document.getElementById('input_rows').value, 10),
+    priority: parseInt(document.getElementById('priority').value, 10),
     params: {},
   };
   if (document.getElementById('simulate_failure').checked) body.params.simulate_failure = true;
@@ -75,6 +81,7 @@ async function loadRecent() {
     ? C.table([
         { key: 'name', label: '作业 Job' },
         { key: 'status', label: '状态 Status', render: r => C.stateBadge(r.status, true) },
+        { key: 'priority', label: '优先级 Priority', render: r => C.priorityBadge(r), num: true },
         { key: 'mapper', label: 'Mapper' },
         { key: 'reducer', label: 'Reducer' },
         { key: 'created_ms', label: '时间 Time', render: r => C.fmtTime(r.created_ms) },

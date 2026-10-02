@@ -37,6 +37,10 @@ async function render() {
       <div class="stat"><div class="label">作业 Job</div><div class="value" style="font-size:20px">${C.esc(job.name)}</div>
         <div class="delta mono">${C.esc(job.job_id)}</div></div>
       <div class="stat"><div class="label">状态 Status</div><div class="value" style="font-size:20px">${C.stateBadge(job.status, true)}</div></div>
+      <div class="stat"><div class="label">优先级 Priority</div><div class="value" style="font-size:20px">${C.priorityBadge(job)}</div>
+        <div class="delta">${priorityEditor(job)}</div></div>
+      <div class="stat"><div class="label">队列 Queue</div><div class="value" style="font-size:20px">${C.queueBadge(job.queue_state || 'RUNNING')}</div>
+        <div class="delta">${job.queue_position ? '队位 #' + job.queue_position : formatReason(job.wait_reason)}</div></div>
       <div class="stat"><div class="label">Map 任务 Tasks</div><div class="value">${job.num_map_tasks}</div></div>
       <div class="stat"><div class="label">Reduce 任务 Tasks</div><div class="value">${job.num_reduce_tasks}</div></div>
       <div class="stat"><div class="label">输入记录 Records</div><div class="value">${C.fmtNum(job.input_rows)}</div></div>
@@ -64,7 +68,36 @@ async function render() {
   ], filtered) : C.empty();
 }
 
+function formatReason(reason) {
+  return {
+    running: '运行中',
+    ready: '就绪',
+    higher_priority: '等待更高优先级',
+    fair_share: '等待公平份额',
+    retry_backoff: '重试退避',
+    shuffle: 'Shuffle 阶段',
+    stage: '阶段等待',
+    done: '已完成',
+  }[reason] || (reason || '');
+}
+
+function priorityEditor(job) {
+  if (['SUCCEEDED', 'FAILED', 'CANCELLED'].includes(job.status)) return '';
+  const opts = [[1, '低'], [5, '普通'], [10, '高']].map(([v, label]) =>
+    `<option value="${v}" ${job.priority === v ? 'selected' : ''}>${label}</option>`).join('');
+  return `<select class="job-select" id="priority-select" style="padding:4px 8px">${opts}</select>`;
+}
+
 C.jobPicker('job-picker', (id) => { currentJob = id; render(); });
 document.getElementById('refresh').addEventListener('click', render);
+document.addEventListener('change', async (ev) => {
+  if (ev.target.id !== 'priority-select' || !currentJob) return;
+  try {
+    await API.put(`/api/jobs/${encodeURIComponent(currentJob)}/priority`,
+                  { priority: parseInt(ev.target.value, 10) });
+    C.toast('优先级已更新 Priority updated', 'ok');
+    render();
+  } catch (e) { C.toast('更新失败 ' + e.message, 'error'); }
+});
 setupFilters();
 C.poll(render, 2000).start();

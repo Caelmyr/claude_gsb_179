@@ -25,6 +25,14 @@ from backend.tasks.registry import has_mapper, has_reducer
 from backend.tasks.samples import input_kind_for
 
 
+def priority_label(priority: int) -> str:
+    if priority >= C.PRIORITY_HIGH:
+        return "高 High"
+    if priority <= C.PRIORITY_LOW:
+        return "低 Low"
+    return "普通 Normal"
+
+
 class JobManager:
     def __init__(self, storage: Storage, config, logbus: LogBus) -> None:
         self.storage = storage
@@ -82,10 +90,13 @@ class JobManager:
         num_map = int(payload.get("num_map_tasks", defaults.get("num_map_tasks", 8)))
         num_reduce = int(payload.get("num_reduce_tasks", defaults.get("num_reduce_tasks", 4)))
         input_rows = int(payload.get("input_rows", defaults.get("input_rows", 12000)))
+        priority = max(C.PRIORITY_MIN, min(C.PRIORITY_MAX,
+                                           int(payload.get("priority", defaults.get("priority", C.PRIORITY_NORMAL)))))
         params = dict(payload.get("params") or {})
         params["input_kind"] = input_kind_for(mapper)
 
-        job = new_job(name, mapper, reducer, num_map, num_reduce, input_rows, params)
+        job = new_job(name, mapper, reducer, num_map, num_reduce, input_rows, params,
+                      priority=priority)
 
         with self._lock:
             plan = self.planner.plan(job)
@@ -94,6 +105,8 @@ class JobManager:
             job.reduce_task_ids = [t.task_id for t in plan["reduce_tasks"]]
             job.status = C.JOB_MAP
             job.started_ms = now_ms()
+            job.waiting_since_ms = job.started_ms
+            job.fair_vruntime_ms = self._baseline_vruntime_locked()
             job.stats["total_records"] = plan["total_records"] + 1
             job.stats["input_kind"] = params["input_kind"]
 
@@ -185,10 +198,56 @@ class JobManager:
             self.save_job(job)
             return job
 
+    def apply_all_jobs(self, fn: Callable[[Job], None]) -> None:
+        with self._lock:
+            changed = False
+            for job in self._jobs.values():
+                before = (job.effective_priority, job.fair_vruntime_ms, job.waiting_since_ms)
+                fn(job)
+                changed |= before != (job.effective_priority, job.fair_vruntime_ms,
+                                      job.waiting_since_ms)
+            if changed:
+                for job in self._jobs.values():
+                    self.save_job(job)
+
     def mark_task_dispatched(self, job: Job, task: Task, worker_id: str) -> None:
         self.update_task(job.job_id, task.task_id,
                          status=C.TASK_ASSIGNED, worker_id=worker_id,
                          assigned_ms=now_ms(), attempts=task.attempts + 0)
+
+    # ------------------------------------------------------------------
+    # Priority / scheduling mutations
+    # ------------------------------------------------------------------
+    def set_priority(self, job: Job, priority: int) -> Job:
+        priority = max(C.PRIORITY_MIN, min(C.PRIORITY_MAX, int(priority)))
+        with self._lock:
+            old = job.priority
+            if priority == old:
+                return job
+            # A promotion must not grant an unlimited virtual-time windfall:
+            # start at the least-scheduled member of the new priority class.
+            if priority > old:
+                floor = self._baseline_vruntime_locked(priority=priority)
+                job.fair_vruntime_ms = max(job.fair_vruntime_ms, floor)
+            job.priority = priority
+            job.effective_priority = priority
+            job.priority_updated_ms = now_ms()
+            job.waiting_since_ms = job.waiting_since_ms or now_ms()
+            history = list(job.stats.get("priority_history") or [])
+            history.append({"from": old, "to": priority, "ts_ms": job.priority_updated_ms})
+            job.stats["priority_history"] = history
+            self.save_job(job)
+        self.logbus.info(job.job_id, f"priority changed {old} -> {priority}", task_id="scheduler")
+        return job
+
+    def _baseline_vruntime_locked(self, priority: Optional[int] = None) -> float:
+        peers = []
+        for other in self._jobs.values():
+            if other.is_terminal or other.status == C.JOB_SHUFFLE:
+                continue
+            if priority is None or other.priority == priority:
+                peers.append(other.fair_vruntime_ms)
+        return min(peers) if peers else 0.0
 
     def cancel(self, job: Job) -> Job:
         self.set_job_status(job, C.JOB_CANCELLED)
@@ -204,13 +263,18 @@ class JobManager:
     # ------------------------------------------------------------------
     # Derived views
     # ------------------------------------------------------------------
+    @staticmethod
+    def priority_label(priority: int) -> str:
+        return priority_label(priority)
+
     def stage_progress(self, job: Job) -> dict:
         tasks = self.tasks_for(job.job_id)
         progress: dict = {}
         for stage, kind in ((C.STAGE_MAP, C.TASK_MAP), (C.STAGE_REDUCE, C.TASK_REDUCE)):
             stage_tasks = [t for t in tasks if t.kind == kind]
             counts = {C.TASK_PENDING: 0, C.TASK_ASSIGNED: 0, C.TASK_RUNNING: 0,
-                      C.TASK_RETRYING: 0, C.TASK_SUCCEEDED: 0, C.TASK_FAILED: 0}
+                      C.TASK_RETRYING: 0, C.TASK_SUCCEEDED: 0, C.TASK_FAILED: 0,
+                      C.TASK_CANCELING: 0, C.TASK_CANCELLED: 0}
             for t in stage_tasks:
                 counts[t.status] = counts.get(t.status, 0) + 1
             total = len(stage_tasks)
@@ -237,6 +301,12 @@ class JobManager:
             "num_map_tasks": job.num_map_tasks,
             "num_reduce_tasks": job.num_reduce_tasks,
             "input_rows": job.input_rows,
+            "priority": job.priority,
+            "effective_priority": job.effective_priority,
+            "priority_label": self.priority_label(job.priority),
+            "fair_vruntime_ms": round(job.fair_vruntime_ms, 2),
+            "waiting_since_ms": job.waiting_since_ms,
+            "priority_updated_ms": job.priority_updated_ms,
             "created_ms": job.created_ms,
             "started_ms": job.started_ms,
             "finished_ms": job.finished_ms,

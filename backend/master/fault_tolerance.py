@@ -79,6 +79,7 @@ class FaultTolerance:
                 attempts=task.attempts + 1,
                 retry_after_ms=now_ms() + backoff_ms,
                 progress=0.0, records_processed=0, records_emitted=0,
+                dispatch_token=task.dispatch_token + 1,
             )
             return True
 
@@ -98,7 +99,8 @@ class FaultTolerance:
             if job.is_terminal:
                 continue
             for task in self.job_manager.tasks_for(job.job_id):
-                if task.worker_id == worker.worker_id and task.status in C.TASK_ACTIVE_STATES:
+                if task.worker_id == worker.worker_id and task.status in (
+                        C.TASK_ASSIGNED, C.TASK_RUNNING, C.TASK_CANCELING):
                     self._record(
                         job, "worker_dead",
                         f"worker {worker.name} lost; reassigning task {task.task_id}",
@@ -108,6 +110,8 @@ class FaultTolerance:
                         job.job_id, task.task_id,
                         status=C.TASK_RETRYING, worker_id=None,
                         error=f"worker {worker.name} died", retry_after_ms=0,
+                        dispatch_token=task.dispatch_token + 1, progress=0.0,
+                        records_processed=0, records_emitted=0,
                     )
                     reassigned += 1
         return reassigned

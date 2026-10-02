@@ -79,6 +79,8 @@ class Master:
         app.add_url_rule("/api/samples", "samples", self._samples, methods=["GET"])
         app.add_url_rule("/api/jobs", "jobs", self._jobs, methods=["GET", "POST"])
         app.add_url_rule("/api/jobs/<job_id>", "job_detail", self._job_detail, methods=["GET"])
+        app.add_url_rule("/api/jobs/<job_id>/priority", "job_priority", self._job_priority, methods=["POST", "PUT"])
+        app.add_url_rule("/api/scheduler/queue", "scheduler_queue", self._scheduler_queue, methods=["GET"])
         app.add_url_rule("/api/jobs/<job_id>/cancel", "job_cancel", self._job_cancel, methods=["POST"])
         app.add_url_rule("/api/jobs/<job_id>/tasks", "job_tasks", self._job_tasks, methods=["GET"])
         app.add_url_rule("/api/jobs/<job_id>/shards", "job_shards", self._job_shards, methods=["GET"])
@@ -189,6 +191,13 @@ class Master:
             return err, code
         summary = self.job_manager.job_summary(job)
         summary["shuffle"] = self.shuffle.progress(job)
+        for item in self.scheduler.queue_snapshot()["jobs"]:
+            if item["job_id"] == job_id:
+                for key in ("queue_state", "queue_position", "wait_reason", "ready_tasks",
+                            "running_tasks", "effective_priority", "effective_priority_label"):
+                    if key in item:
+                        summary[key] = item[key]
+                break
         summary["fault_count"] = len(self.fault_tolerance.list_faults(job_id))
         return jsonify({
             "job": summary,
@@ -202,6 +211,27 @@ class Master:
         if not job.is_terminal:
             self.job_manager.cancel(job)
         return jsonify(self.job_manager.job_summary(job))
+
+    def _job_priority(self, job_id: str):
+        job, err, code = self._get_job(job_id)
+        if job is None:
+            return err, code
+        body = request.get_json(silent=True) or {}
+        try:
+            priority = int(body.get("priority", job.priority))
+        except (TypeError, ValueError):
+            return jsonify({"error": "priority must be an integer"}), 400
+        if not C.PRIORITY_MIN <= priority <= C.PRIORITY_MAX:
+            return jsonify({"error": f"priority must be between {C.PRIORITY_MIN} and {C.PRIORITY_MAX}"}), 400
+        if job.is_terminal:
+            return jsonify({"error": "cannot change priority of a terminal job"}), 409
+        self.job_manager.set_priority(job, priority)
+        # Re-evaluate admission/preemption immediately; do not wait for next tick.
+        self.scheduler.tick()
+        return jsonify(self.job_manager.job_summary(job))
+
+    def _scheduler_queue(self):
+        return jsonify(self.scheduler.queue_snapshot())
 
     def _job_tasks(self, job_id: str):
         job, err, code = self._get_job(job_id)

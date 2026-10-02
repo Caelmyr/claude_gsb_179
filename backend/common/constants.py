@@ -34,9 +34,27 @@ TASK_RUNNING = "RUNNING"
 TASK_SUCCEEDED = "SUCCEEDED"
 TASK_FAILED = "FAILED"         # permanently failed after max attempts
 TASK_RETRYING = "RETRYING"     # failed, waiting to be re-dispatched
+TASK_CANCELLED = "CANCELLED"   # stopped by scheduler or job cancellation
+TASK_CANCELING = "CANCELING"   # cancel requested, waiting for worker acknowledgement
 
-TASK_ACTIVE_STATES = {TASK_ASSIGNED, TASK_RUNNING, TASK_RETRYING}
-TASK_TERMINAL_STATES = {TASK_SUCCEEDED, TASK_FAILED}
+TASK_ACTIVE_STATES = {TASK_ASSIGNED, TASK_RUNNING, TASK_RETRYING, TASK_CANCELING}
+TASK_TERMINAL_STATES = {TASK_SUCCEEDED, TASK_FAILED, TASK_CANCELLED}
+
+# ---------------------------------------------------------------------------
+# Job priorities (larger value = more important)
+# ---------------------------------------------------------------------------
+PRIORITY_LOW = 1
+PRIORITY_NORMAL = 5
+PRIORITY_HIGH = 10
+PRIORITY_MIN = 1
+PRIORITY_MAX = 10
+
+# Scheduler-visible queue states for the UI/API.
+QUEUE_RUNNING = "RUNNING"
+QUEUE_READY = "READY"
+QUEUE_WAITING = "WAITING"
+QUEUE_RETRY_WAIT = "RETRY_WAIT"
+QUEUE_STAGE_WAIT = "STAGE_WAIT"
 
 # ---------------------------------------------------------------------------
 # Stage names (also used as directory names in the JSON store)
@@ -90,6 +108,8 @@ STATE_LABELS = {
     TASK_SUCCEEDED: "成功 Succeeded",
     TASK_FAILED: "失败 Failed",
     TASK_RETRYING: "重试中 Retrying",
+    TASK_CANCELING: "让位中 Yielding",
+    TASK_CANCELLED: "已取消 Cancelled",
     WORKER_ALIVE: "存活 Alive",
     WORKER_DEAD: "失联 Dead",
 }

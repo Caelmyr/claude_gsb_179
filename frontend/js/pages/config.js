@@ -16,6 +16,11 @@ const CLUSTER_FIELDS = [
   { key: 'reduce_parallelism_factor', label: 'Reduce 并行因子 Reduce parallelism', type: 'number', step: 0.5, min: 0.5 },
   { key: 'scheduler_tick_sec', label: '调度周期 Scheduler tick (s)', type: 'number', step: 0.05, min: 0.05 },
   { key: 'metric_interval_sec', label: '指标采样周期 Metric interval (s)', type: 'number', step: 0.5, min: 0.5 },
+  { key: 'priority_preemption', label: '启用优先级抢占 Priority preemption', type: 'checkbox' },
+  { key: 'preemption_grace_sec', label: '抢占保护宽限期 Preemption grace (s)', type: 'number', step: 0.5, min: 0 },
+  { key: 'preemption_min_progress', label: '近完成任务保护阈值 Near-complete threshold', type: 'number', step: 0.05, min: 0, max: 1 },
+  { key: 'priority_aging_sec', label: '排队老化间隔 Aging interval (s, 0=off)', type: 'number', step: 5, min: 0 },
+  { key: 'fair_preemption_grace_sec', label: '同优先级公平宽限 Fairness grace (s)', type: 'number', step: 0.5, min: 0 },
   { key: 'demo_mode', label: '演示模式 Demo mode', type: 'checkbox' },
   { key: 'default_input_rows', label: '默认输入行数 Default input rows', type: 'number', step: 100, min: 10 },
 ];
@@ -26,6 +31,7 @@ const DEFAULT_FIELDS = [
   { key: 'num_map_tasks', label: '默认 Map 任务数 Map tasks', type: 'number', step: 1, min: 1 },
   { key: 'num_reduce_tasks', label: '默认 Reduce 任务数 Reduce tasks', type: 'number', step: 1, min: 1 },
   { key: 'input_rows', label: '默认输入行数 Input rows', type: 'number', step: 100, min: 10 },
+  { key: 'priority', label: '默认优先级 Default priority (1-10)', type: 'number', step: 1, min: 1, max: 10 },
 ];
 
 function renderForm(hostId, fields, data) {

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>优先级队列 Queue — 分布式 MapReduce</title>
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <header id="app-nav"></header>
+  <main class="page">
+    <h1 class="page-title">优先级调度队列 <span>Priority Queue</span></h1>
+    <p class="page-desc">查看作业优先级、公平排队位置、各节点执行槽；可在线调整优先级。Jobs are ordered by effective priority and weighted fair runtime.</p>
+
+    <div class="stat-tiles" id="stats"></div>
+
+    <div class="card mt">
+      <h2>作业队列 <span class="sub">Scheduling order</span></h2>
+      <div id="jobs"></div>
+    </div>
+
+    <div class="card mt">
+      <h2>节点执行槽 <span class="sub">Worker slots</span></h2>
+      <div id="workers"></div>
+    </div>
+
+    <div class="card mt">
+      <h2>调度规则 <span class="sub">Policy</span></h2>
+      <ul class="small" style="margin:0;padding-left:18px;line-height:1.8">
+        <li>高优先级作业先获得空闲执行槽；同优先级按已分配的加权公平运行时间轮转，避免单个作业长期独占。</li>
+        <li>资源不足且配置允许抢占时，调度器只回收高优先级作业实际缺少的槽；刚启动和接近完成（默认 ≥90%）的任务受保护。</li>
+        <li>同优先级作业出现饥饿并超过宽限期后，会从占多个槽的作业回收一个槽给空槽作业。</li>
+        <li>排队作业会按老化时间提升有效优先级，基础优先级和当前有效优先级分别展示；中途改优先级立即生效。</li>
+        <li>被抢占任务回到队首重试，不消耗失败次数；节点失联或任务失败按退避策略重新排队。</li>
+      </ul>
+    </div>
+  </main>
+  <script src="js/api.js"></script>
+  <script src="js/components.js"></script>
+  <script src="js/pages/scheduler.js"></script>
+</body>
+</html>

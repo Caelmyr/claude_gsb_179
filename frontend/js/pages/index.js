@@ -22,6 +22,7 @@ async function load() {
         [
           { key: 'name', label: '作业 Job' },
           { key: 'status', label: '状态 Status', render: r => C.stateBadge(r.status, true) },
+          { key: 'priority', label: '优先级 Priority', render: r => C.priorityBadge(r), num: true },
           { key: 'stage', label: '阶段进度 Progress', render: r => stageBars(r) },
           { key: 'created_ms', label: '提交时间 Submitted', render: r => C.fmtTime(r.created_ms) },
         ],

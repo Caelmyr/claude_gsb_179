@@ -4,6 +4,7 @@ const Components = (() => {
     { key: 'home', href: 'index.html', label: '总览 Overview' },
     { key: 'submit', href: 'submit.html', label: '作业提交 Submit' },
     { key: 'monitor', href: 'monitor.html', label: '作业监控 Monitor' },
+    { key: 'scheduler', href: 'scheduler.html', label: '优先级队列 Queue' },
     { key: 'nodes', href: 'nodes.html', label: '节点管理 Nodes' },
     { key: 'shards', href: 'shards.html', label: '分片管理 Shards' },
     { key: 'shuffle', href: 'shuffle.html', label: 'Shuffle 排序' },
@@ -18,11 +19,13 @@ const Components = (() => {
     PENDING: '待调度 Pending', SHARDING: '分片 Sharding', MAP: 'Map', SHUFFLE: 'Shuffle',
     REDUCE: 'Reduce', SUCCEEDED: '成功 Succeeded', FAILED: '失败 Failed', CANCELLED: '已取消 Cancelled',
     ASSIGNED: '已分配 Assigned', RUNNING: '运行中 Running', RETRYING: '重试 Retrying',
+    CANCELING: '让位中 Yielding', CANCELLED: '已取消 Cancelled',
     alive: '存活 Alive', dead: '失联 Dead', ready: '就绪 Ready', done: '完成 Done',
   };
   const CLASS = {
     SUCCEEDED: 'good', FAILED: 'bad', CANCELLED: 'muted', RUNNING: 'run', MAP: 'run',
     REDUCE: 'aqua', SHUFFLE: 'warn', RETRYING: 'warn', ASSIGNED: 'aqua', PENDING: 'muted',
+    CANCELING: 'warn', CANCELLED: 'muted',
     SHARDING: 'muted', alive: 'good', dead: 'bad', ready: 'muted', done: 'good',
   };
 
@@ -68,6 +71,32 @@ const Components = (() => {
     const cls = CLASS[state] || 'muted';
     const label = LABELS[state] || String(state);
     return `<span class="badge ${cls}${withDot ? ' badge-dot' : ''}">${esc(label)}</span>`;
+  }
+
+  function priorityBadge(job) {
+    const p = Number(job && job.priority) || 5;
+    const effective = Number(job && job.effective_priority);
+    const showEffective = !!(job && Object.prototype.hasOwnProperty.call(job, 'effective_priority_label'));
+    const label = p >= 10 ? '高 High' : (p <= 1 ? '低 Low' : '普通 Normal');
+    const cls = p >= 10 ? 'run' : (p <= 1 ? 'muted' : 'warn');
+    let html = `<span class="badge ${cls}">${esc(label)} ${p}</span>`;
+    if (showEffective) {
+      html += ` <span class="small muted">(老化后 ${effective})</span>`;
+    }
+    return html;
+  }
+
+  function queueBadge(state) {
+    const map = {
+      RUNNING: ['运行中 Running', 'good'],
+      READY: ['就绪 Ready', 'aqua'],
+      WAITING: ['排队 Waiting', 'warn'],
+      RETRY_WAIT: ['重试等待 Retry wait', 'warn'],
+      STAGE_WAIT: ['阶段等待 Stage', 'muted'],
+      DONE: ['已完成 Done', 'good'],
+    };
+    const [label, cls] = map[state] || [state, 'muted'];
+    return `<span class="badge ${cls}">${esc(label)}</span>`;
   }
 
   function progress(pct, label) {
@@ -194,6 +223,6 @@ const Components = (() => {
 
   return {
     PAGES, LABELS, CLASS, esc, fmtNum, fmtBytes, fmtTime, fmtDur, fmtPct,
-    stateBadge, progress, meter, empty, table, renderNav, init, toast, poll, valueCell, jobPicker,
+    stateBadge, priorityBadge, queueBadge, progress, meter, empty, table, renderNav, init, toast, poll, valueCell, jobPicker,
   };
 })();

@@ -94,6 +94,7 @@ class Task:
     retry_after_ms: int = 0
     error: str = ""
     stats: dict = field(default_factory=dict)
+    dispatch_token: int = 0
     version: int = 0
 
     def to_dict(self) -> dict:
@@ -117,6 +118,11 @@ class Job:
     num_map_tasks: int
     num_reduce_tasks: int
     input_rows: int = 0
+    priority: int = C.PRIORITY_NORMAL
+    effective_priority: int = C.PRIORITY_NORMAL
+    fair_vruntime_ms: float = 0.0
+    waiting_since_ms: int = 0
+    priority_updated_ms: int = 0
     status: str = C.JOB_PENDING
     created_ms: int = 0
     started_ms: int = 0
@@ -223,7 +229,8 @@ class MetricSample:
 # Factories
 # ---------------------------------------------------------------------------
 def new_job(name: str, mapper: str, reducer: str, num_map_tasks: int,
-            num_reduce_tasks: int, input_rows: int, params: Optional[dict] = None) -> Job:
+            num_reduce_tasks: int, input_rows: int, params: Optional[dict] = None,
+            priority: int = C.PRIORITY_NORMAL) -> Job:
     return Job(
         job_id=new_id("job"),
         name=name,
@@ -232,6 +239,9 @@ def new_job(name: str, mapper: str, reducer: str, num_map_tasks: int,
         num_map_tasks=num_map_tasks,
         num_reduce_tasks=num_reduce_tasks,
         input_rows=input_rows,
+        priority=priority,
+        effective_priority=priority,
+        priority_updated_ms=now_ms(),
         created_ms=now_ms(),
         params=params or {},
         stage_progress={s: {"done": 0, "total": 0, "pct": 0.0} for s in C.STAGES},

@@ -56,6 +56,11 @@ class ClusterConfig:
     reduce_parallelism_factor: float = 2.0
     scheduler_tick_sec: float = 5.0              # master scheduling loop cadence
     metric_interval_sec: float = 2.0             # metric sample cadence
+    priority_preemption: bool = True             # reclaim slots for higher-priority work
+    preemption_grace_sec: float = 1.0            # protect newly-started tasks from churn
+    preemption_min_progress: float = 0.90        # leave near-complete tasks alone
+    priority_aging_sec: float = 60.0             # waiting work gains one priority level
+    fair_preemption_grace_sec: float = 2.0       # grace before same-priority fairness rebalancing
     demo_mode: bool = False                      # simulate work for fast UI demos
     default_input_rows: int = 12000              # generated input size for sample jobs
     seed: int = 20260930
@@ -84,6 +89,11 @@ class ClusterConfig:
             reduce_parallelism_factor=_num(self.reduce_parallelism_factor, 2.0, 0.5, 50.0),
             scheduler_tick_sec=_num(self.scheduler_tick_sec, 0.5, 0.05, 10.0),
             metric_interval_sec=_num(self.metric_interval_sec, 2.0, 0.5, 60.0),
+            priority_preemption=_bool(self.priority_preemption, True),
+            preemption_grace_sec=_num(self.preemption_grace_sec, 1.0, 0.0, 60.0),
+            preemption_min_progress=_num(self.preemption_min_progress, 0.9, 0.0, 1.0),
+            priority_aging_sec=_num(self.priority_aging_sec, 60.0, 0.0, 3600.0),
+            fair_preemption_grace_sec=_num(self.fair_preemption_grace_sec, 2.0, 0.0, 300.0),
             demo_mode=_bool(self.demo_mode, False),
             default_input_rows=_int(self.default_input_rows, 12000, 10, 10_000_000),
             seed=_int(self.seed, 20260930, 0, 2 ** 31 - 1),
@@ -99,6 +109,7 @@ class JobDefaults:
     num_map_tasks: int = 8
     num_reduce_tasks: int = 4
     input_rows: int = 12000
+    priority: int = 5
     params: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
@@ -116,6 +127,7 @@ class JobDefaults:
             num_map_tasks=_int(self.num_map_tasks, 8, 1, 1000),
             num_reduce_tasks=_int(self.num_reduce_tasks, 4, 1, 500),
             input_rows=_int(self.input_rows, 12000, 10, 10_000_000),
+            priority=_int(self.priority, 5, 1, 10),
             params=dict(self.params or {}),
         )
 
